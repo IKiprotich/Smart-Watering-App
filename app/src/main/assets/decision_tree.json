@@ -1,0 +1,8 @@
+{
+  "features":["temp_mean_yday","temp_max_yday","humidity_mean_yday","wind_max_yday","rain_yday","rain_last_3d","et0_yday","et0_last_3d","days_since_rain","days_since_watered","kc","threshold_mm"],
+  "children_left":[1,-1,-1],
+  "children_right":[2,-1,-1],
+  "feature":[8,-2,-2],
+  "threshold":[1.0,-2.0,-2.0],
+  "predicted_class":[0,0,1]
+}
