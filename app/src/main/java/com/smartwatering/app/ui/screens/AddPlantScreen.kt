@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.smartwatering.app.model.Species
+import com.smartwatering.app.ui.util.NairobiZone
+import java.time.LocalDate
 import com.smartwatering.app.ui.state.SmartWateringViewModel
 import kotlinx.coroutines.launch
 
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
 fun AddPlantScreen(nav: NavHostController, vm: SmartWateringViewModel = viewModel()) {
     var name by rememberSaveable { mutableStateOf("") }
     var selected by rememberSaveable { mutableStateOf(Species.HERB.name) }
+    var wateredDaysAgo by rememberSaveable { mutableStateOf<Int?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -63,6 +66,8 @@ fun AddPlantScreen(nav: NavHostController, vm: SmartWateringViewModel = viewMode
                 )
             }
         }
+        Spacer(Modifier.height(22.dp))
+        LastWateredPicker(wateredDaysAgo) { wateredDaysAgo = it }
         Spacer(Modifier.height(28.dp))
         Button(
             onClick = {
@@ -71,7 +76,12 @@ fun AddPlantScreen(nav: NavHostController, vm: SmartWateringViewModel = viewMode
                     return@Button
                 }
                 scope.launch {
-                    vm.addPlant(name, Species.valueOf(selected))
+                    val timestamp = wateredDaysAgo?.let { days ->
+                        if (days == 0) System.currentTimeMillis()
+                        else LocalDate.now(NairobiZone).minusDays(days.toLong())
+                            .atStartOfDay(NairobiZone).toInstant().toEpochMilli()
+                    }
+                    vm.addPlant(name, Species.valueOf(selected), timestamp)
                         .onSuccess { nav.popBackStack() }
                         .onFailure { error = "Couldn’t save your plant. Try again." }
                 }

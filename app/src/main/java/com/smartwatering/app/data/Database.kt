@@ -96,11 +96,17 @@ interface AppDao {
     @Query("SELECT * FROM check_ins WHERE plantId = :id ORDER BY timestamp DESC")
     fun history(id: Long): Flow<List<CheckIn>>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM plants WHERE id = :id)")
+    suspend fun plantExists(id: Long): Boolean
+
     @Upsert
     suspend fun saveDecision(record: DecisionRecord)
 
     @Query("SELECT * FROM decisions WHERE date = :date")
     fun decisions(date: String): Flow<List<DecisionRecord>>
+
+    @Query("SELECT * FROM decisions WHERE date = :date")
+    suspend fun currentDecisions(date: String): List<DecisionRecord>
 
     @Query("SELECT * FROM check_ins ORDER BY timestamp")
     suspend fun allCheckIns(): List<CheckIn>

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,17 +36,34 @@ import com.smartwatering.app.ui.util.localDate
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(nav: NavHostController, vm: SmartWateringViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     val today = LocalDate.now(NairobiZone)
 
+    PullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = vm::refresh,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        TodayContent(state, today, nav, vm::refresh)
+    }
+}
+
+@Composable
+private fun TodayContent(
+    state: GardenUiState,
+    today: LocalDate,
+    nav: NavHostController,
+    refresh: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { TodayHeader(today = today, state = state, onRefresh = vm::refresh) }
+        item { TodayHeader(today = today, state = state, onRefresh = refresh) }
         item { DailyPlanCard(state = state) }
         state.refreshMessage?.let { message ->
             item { Text(message, color = MaterialTheme.colorScheme.error) }
@@ -247,6 +265,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.TodayPlantList(state:
         key = Plant::id
     ) { plant ->
         val decision = state.decisions.firstOrNull { it.plantId == plant.id }
+        val previous = state.yesterdayDecisions.firstOrNull { it.plantId == plant.id }
+            ?.takeIf { state.refreshMessage != null }
         Card(
             onClick = { nav.navigate("plant/${plant.id}") },
             modifier = Modifier.fillMaxWidth(),
@@ -274,7 +294,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.TodayPlantList(state:
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        decision?.reason ?: "Your care plan is updating",
+                        decision?.reason ?: previous?.let {
+                            "Yesterday: ${if (it.water) "Water" else "Wait"}. ${it.reason}"
+                        } ?: "Waiting for today’s care plan",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -284,7 +306,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.TodayPlantList(state:
                     label = {
                         Text(
                             when {
-                                decision == null -> "Checking"
+                                decision == null -> if (previous != null) "Yesterday" else "Checking"
                                 decision.water -> "Water"
                                 else -> "Wait"
                             }

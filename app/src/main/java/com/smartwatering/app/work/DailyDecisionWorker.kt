@@ -31,7 +31,8 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
 
         val tree = loadDecisionTree() ?: return@withContext Result.failure()
         repository.allPlants().forEach { plant ->
-            val daysSinceWatered = daysSinceLastWatering(plant.id, today)
+            val lastWateredAt = repository.lastWatered(plant.id)
+            val daysSinceWatered = daysSinceLastWatering(lastWateredAt, today)
             val decision = if (daysSinceWatered == 0) {
                 DecisionRecord(plant.id, today.toString(), false, "Watered today")
             } else {
@@ -46,7 +47,11 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
                     features = features.joinToString(",")
                 )
             }
-            repository.saveDecision(decision)
+            repository.saveDecision(decision, lastWateredAt)
+        }
+        if (inputData.getBoolean(Scheduler.MORNING_RUN, false)) {
+            val due = repository.currentDecisions(today.toString()).count { it.water }
+            if (due > 0) CareReminder.post(applicationContext, due)
         }
         Result.success()
     }
@@ -68,8 +73,8 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
         null
     }
 
-    private suspend fun daysSinceLastWatering(plantId: Long, today: LocalDate): Int {
-        val lastWatered = repository.lastWatered(plantId) ?: return 1
+    private fun daysSinceLastWatering(lastWateredAt: Long?, today: LocalDate): Int {
+        val lastWatered = lastWateredAt ?: return 1
         val wateredDate = Instant.ofEpochMilli(lastWatered).atZone(Nairobi).toLocalDate()
         return ChronoUnit.DAYS.between(wateredDate, today).toInt().coerceAtLeast(0)
     }

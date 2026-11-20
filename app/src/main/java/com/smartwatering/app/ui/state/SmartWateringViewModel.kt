@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.smartwatering.app.data.AppDatabase
 import com.smartwatering.app.data.CheckIn
+import com.smartwatering.app.data.CheckInType
 import com.smartwatering.app.data.DecisionRecord
 import com.smartwatering.app.data.Plant
 import com.smartwatering.app.data.PlantRepository
@@ -25,12 +26,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.smartwatering.app.ui.util.localDate
 import java.time.LocalDate
 import java.time.ZoneId
 
 data class GardenUiState(
     val plants: List<Plant> = emptyList(),
-    val decisions: List<DecisionRecord> = emptyList(),
+    val modelDecisions: List<DecisionRecord> = emptyList(),
+    val yesterdayDecisions: List<DecisionRecord> = emptyList(),
     val checkIns: List<CheckIn> = emptyList(),
     val weather: DailyWeather? = null,
     val isRefreshing: Boolean = false,
@@ -38,7 +41,18 @@ data class GardenUiState(
     val isSavingPlant: Boolean = false,
     val isLoggingWater: Boolean = false,
     val error: String? = null
-)
+) {
+    val decisions: List<DecisionRecord>
+        get() {
+            val today = LocalDate.now(ZoneId.of("Africa/Nairobi"))
+            val watered = checkIns.filter {
+                it.type == CheckInType.WATERED && localDate(it.timestamp) == today
+            }.mapTo(mutableSetOf()) { it.plantId }
+            return modelDecisions.filter {
+                it.date == today.toString() && it.plantId !in watered && it.reason != "Watered today"
+            } + watered.map { DecisionRecord(it, today.toString(), false, "Watered today") }
+        }
+}
 
 class SmartWateringViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = PlantRepository(AppDatabase.get(application))
@@ -89,10 +103,10 @@ class SmartWateringViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    suspend fun addPlant(name: String, species: Species): Result<Unit> {
+    suspend fun addPlant(name: String, species: Species, lastWateredAt: Long?): Result<Unit> {
         mutableState.update { it.copy(isSavingPlant = true, error = null) }
         return runCatching {
-            repository.addPlant(name, species)
+            repository.addPlant(name, species, lastWateredAt)
             refreshPlan(replaceRunning = true)
         }.onFailure { error ->
             mutableState.update { it.copy(error = error.message ?: "Could not save this plant") }
@@ -111,11 +125,11 @@ class SmartWateringViewModel(application: Application) : AndroidViewModel(applic
 
     suspend fun exportCsv(uri: Uri) = csvExporter.export(getApplication(), uri)
 
-    suspend fun logWatering(plantId: Long): Result<Long> {
+    suspend fun logCheckIn(plantId: Long, type: CheckInType): Result<Long> {
         mutableState.update { it.copy(isLoggingWater = true, error = null) }
         return runCatching {
-            val checkInId = repository.logWatering(plantId)
-            refreshPlan(replaceRunning = true)
+            val checkInId = repository.logCheckIn(plantId, type)
+            if (type == CheckInType.WATERED) refreshPlan(replaceRunning = true)
             checkInId
         }.onFailure { error ->
             mutableState.update { it.copy(error = error.message ?: "Could not save watering") }
@@ -138,14 +152,17 @@ class SmartWateringViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private fun observeTodayDecisions() {
-        val today = LocalDate.now(Nairobi).toString()
-        if (decisionDate == today) return
-        decisionDate = today
+        val today = LocalDate.now(Nairobi)
+        if (decisionDate == today.toString()) return
+        decisionDate = today.toString()
         decisionObserver?.cancel()
-        mutableState.update { it.copy(decisions = emptyList()) }
+        mutableState.update { it.copy(modelDecisions = emptyList(), yesterdayDecisions = emptyList()) }
         decisionObserver = viewModelScope.launch {
-            repository.decisions(today).collect { decisions ->
-                mutableState.update { it.copy(decisions = decisions) }
+            kotlinx.coroutines.flow.combine(
+                repository.decisions(today.toString()),
+                repository.decisions(today.minusDays(1).toString())
+            ) { current, previous -> current to previous }.collect { (current, previous) ->
+                mutableState.update { it.copy(modelDecisions = current, yesterdayDecisions = previous) }
             }
         }
     }

@@ -27,99 +27,126 @@ fun PlantDetailScreen(id: Long?, nav: NavHostController, vm: SmartWateringViewMo
     val history by remember(id) { vm.history(id) }.collectAsState(initial = emptyList())
     val gardenState by vm.state.collectAsState()
     val decision = gardenState.decisions.firstOrNull { it.plantId == id }
+    val previous = gardenState.yesterdayDecisions.firstOrNull { it.plantId == id }
+        ?.takeIf { gardenState.refreshMessage != null }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    var showCheckIns by remember { mutableStateOf(false) }
+    fun saveCheckIn(type: CheckInType) {
+        scope.launch {
+            vm.logCheckIn(id, type).onSuccess { checkInId ->
+                val message = if (type == CheckInType.WATERED) "Watering recorded" else "Check-in saved"
+                if (snackbar.showSnackbar(message, "Undo", duration = SnackbarDuration.Short) ==
+                    SnackbarResult.ActionPerformed
+                ) {
+                    vm.undoCheckIn(checkInId)
+                }
+            }.onFailure { snackbar.showSnackbar("Couldn’t save the check-in. Try again.") }
+        }
+    }
+
+    if (showCheckIns) {
+        PlantCheckInSheet(onDismiss = { showCheckIns = false }) { type ->
+            showCheckIns = false
+            saveCheckIn(type)
+        }
+    }
 
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { insets ->
         val currentPlant = plant
         if (currentPlant == null) {
             MissingPlant(Modifier.padding(insets)) { nav.popBackStack() }
         } else {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .padding(insets)
-                    .padding(horizontal = 20.dp, vertical = 14.dp)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(insets),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                IconButton(onClick = nav::popBackStack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back to plants"
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SpeciesAvatar(currentPlant.species, 68.dp)
-                    Column(Modifier.padding(start = 16.dp)) {
-                        Text(currentPlant.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-                        Text(currentPlant.species.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                Spacer(Modifier.height(22.dp))
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    shape = MaterialTheme.shapes.extraLarge
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                        Text(
-                            when (decision?.water) { true -> "Water today"; false -> "Wait today"; null -> "Today’s care" },
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            decision?.reason ?: "Waiting for today’s care plan",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    vm.logWatering(id).onSuccess { checkInId ->
-                                        val result = snackbar.showSnackbar(
-                                            message = "Watering recorded",
-                                            actionLabel = "Undo"
-                                        )
-                                        if (result == SnackbarResult.ActionPerformed) {
-                                            vm.undoCheckIn(checkInId)
-                                        }
-                                    }.onFailure { snackbar.showSnackbar("Couldn’t record watering. Try again.") }
-                                }
-                            },
-                            enabled = !gardenState.isLoggingWater,
-                            modifier = Modifier.fillMaxWidth()
+                item {
+                    Column {
+                        IconButton(onClick = nav::popBackStack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back to plants"
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SpeciesAvatar(currentPlant.species, 68.dp)
+                            Column(Modifier.padding(start = 16.dp)) {
+                                Text(currentPlant.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                                Text(currentPlant.species.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Spacer(Modifier.height(22.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            shape = MaterialTheme.shapes.extraLarge
                         ) {
-                            Icon(Icons.Filled.WaterDrop, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Log watering")
+                            Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                                Text(
+                                    when {
+                                        decision?.reason == "Watered today" -> "Today’s care"
+                                        decision?.water == true -> "Water today"
+                                        decision != null -> "Wait today"
+                                        previous != null -> "Yesterday’s advice"
+                                        else -> "Today’s care"
+                                    },
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    when {
+                                        decision != null -> decision.reason
+                                        previous != null -> "${if (previous.water) "Water" else "Wait"}. ${previous.reason}"
+                                        else -> "Waiting for today’s care plan"
+                                    },
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(Modifier.height(14.dp))
+                                Button(
+                                    onClick = { saveCheckIn(CheckInType.WATERED) },
+                                    enabled = !gardenState.isLoggingWater,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Filled.WaterDrop, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Log watering")
+                                }
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = { showCheckIns = true },
+                            enabled = !gardenState.isLoggingWater,
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        ) { Text("Log a check-in") }
+                        Spacer(Modifier.height(22.dp))
+                        Text("Care history", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        if (history.isEmpty()) {
+                            Text(
+                                "Check-ins will show here as you care for this plant.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
-                Spacer(Modifier.height(22.dp))
-                Text("Care history", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                if (history.isEmpty()) {
-                    Text(
-                        "Check-ins will show here as you care for this plant.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                items(history, key = { it.id }) { checkIn ->
+                    ListItem(
+                        headlineContent = { Text(checkIn.type.label) },
+                        supportingContent = { Text(relativeTime(checkIn.timestamp)) },
+                        leadingContent = {
+                            Icon(
+                                Icons.Filled.WaterDrop,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     )
-                } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(history, key = { it.id }) { checkIn ->
-                        ListItem(
-                            headlineContent = { Text(checkIn.type.label) },
-                            supportingContent = { Text(relativeTime(checkIn.timestamp)) },
-                            leadingContent = {
-                                Icon(
-                                    Icons.Filled.WaterDrop,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        )
-                    }
                 }
             }
         }

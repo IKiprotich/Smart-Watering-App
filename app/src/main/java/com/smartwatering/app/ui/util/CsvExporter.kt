@@ -1,5 +1,8 @@
 package com.smartwatering.app.ui.util
 
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+
 import android.content.Context
 import android.net.Uri
 import com.smartwatering.app.data.PlantRepository
@@ -27,10 +30,14 @@ class CsvExporter(private val repository: PlantRepository) {
                 val plant = plants[record.plantId]
                 val species = plant?.species?.name ?: "?"
                 out.write(
-                    "check_in,${record.timestamp},${quote(plant?.name ?: "?")}," +
+                    "check_in,${formatCheckInDate(record.timestamp)},${quote(plant?.name ?: "?")}," +
                         "$species,${record.type.name},,\n"
                 )
             }
         } ?: error("Could not open the selected file")
     }
 }
+
+private fun formatCheckInDate(timestamp: Long): String = Instant.ofEpochMilli(timestamp)
+    .atZone(NairobiZone)
+    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)

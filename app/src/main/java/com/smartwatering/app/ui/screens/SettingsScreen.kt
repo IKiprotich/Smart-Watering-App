@@ -11,7 +11,8 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.LocalFlorist
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -85,7 +86,12 @@ fun SettingsScreen(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit, vm: S
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                 SettingsRow(Icons.Filled.Cloud, "Weather data", "Open-Meteo forecast")
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                SettingsRow(Icons.Filled.Notifications, "Daily care plan", "Runs automatically each day")
+                ReminderSettingsRow()
+            }
+            SettingsSection("About") {
+                SettingsRow(Icons.Filled.LocalFlorist, "Watering model", "Runs on your phone. Trained with Nairobi weather from 2015–2025 and simulated watering labels.")
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                SettingsRow(Icons.Filled.Lock, "Privacy", "No account required. Weather requests use a fixed Nairobi location. You choose where to export your records.")
             }
             SettingsSection("Your data") {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {

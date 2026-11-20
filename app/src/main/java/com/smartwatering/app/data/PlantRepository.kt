@@ -20,14 +20,28 @@ class PlantRepository(private val database: AppDatabase) {
 
     suspend fun allCheckIns(): List<CheckIn> = dao.allCheckIns()
 
+    suspend fun currentDecisions(date: String) = dao.currentDecisions(date)
+
     suspend fun allDecisions(): List<DecisionRecord> = dao.allDecisions()
 
-    suspend fun addPlant(name: String, species: Species): Long =
-        dao.insertPlant(Plant(name = name.trim(), species = species))
+    suspend fun addPlant(name: String, species: Species, lastWateredAt: Long?): Long =
+        database.withTransaction {
+            require(name.isNotBlank())
+            val id = dao.insertPlant(Plant(name = name.trim(), species = species))
+            if (lastWateredAt != null) {
+                logCheckIn(id, CheckInType.WATERED, lastWateredAt)
+            }
+            id
+        }
 
-    suspend fun logWatering(plantId: Long): Long = dao.insertCheckInAndReturnId(
-        CheckIn(plantId = plantId, type = CheckInType.WATERED)
-    )
+    suspend fun logCheckIn(
+        plantId: Long,
+        type: CheckInType,
+        timestamp: Long = System.currentTimeMillis()
+    ): Long = database.withTransaction {
+        check(dao.plantExists(plantId)) { "Plant was removed" }
+        dao.insertCheckInAndReturnId(CheckIn(plantId = plantId, type = type, timestamp = timestamp))
+    }
 
     suspend fun undoCheckIn(id: Long) = dao.deleteCheckIn(id)
 
@@ -39,5 +53,11 @@ class PlantRepository(private val database: AppDatabase) {
 
     suspend fun lastWatered(plantId: Long): Long? = dao.lastWatered(plantId)
 
-    suspend fun saveDecision(decision: DecisionRecord) = dao.saveDecision(decision)
+    suspend fun saveDecision(decision: DecisionRecord, lastWateredAt: Long?) {
+        database.withTransaction {
+            if (dao.plantExists(decision.plantId) && dao.lastWatered(decision.plantId) == lastWateredAt) {
+                dao.saveDecision(decision)
+            }
+        }
+    }
 }

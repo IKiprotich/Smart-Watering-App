@@ -19,22 +19,16 @@ The app is organized by responsibility so screens stay focused and data access i
 
 The project now includes Alfred's schema v1 decision tree and 30 matching parity cases. The tree and parity data share the same 12-feature order; `TreeParityTest` checks the order and every expected class. The model metadata also records the weather source and plant parameters.
 
-## Run
+## Run the app
 
-Open this folder in Android Studio, allow Gradle sync, and run the `app` configuration on an API 34+ emulator or Android phone.
+1. Open the project folder in Android Studio and install Android SDK Platform 35.
+2. Use the Gradle wrapper and a compatible Gradle JDK, then sync the project.
+3. Run the `app` configuration on an emulator or an Android 8.0+ device.
+4. Add a plant, select its last watering date, and open its care history to log observations.
+5. In Settings, grant notification access for the morning reminder. Care runs around 7:00 a.m. Nairobi time, subject to Android background scheduling.
+6. Refresh once while online to cache the day's weather. Settings also exports care history as CSV with Nairobi timestamps.
 
-## Run it
-
-1. Install the latest stable Android Studio.
-2. Open `/Users/ian/Documents/mobile app`.
-3. Open `Android Studio > Settings > Build, Execution, Deployment > Build Tools > Gradle`.
-4. Set `Gradle JDK` to `Embedded JDK` or another JDK 17 installation.
-5. Open `Tools > SDK Manager` and install `Android 15 (API 35)` including `Android SDK Platform 35`.
-6. Click `Sync Project with Gradle Files`.
-7. Create/start a Pixel emulator using API 35 or newer.
-8. Press Run for the `app` configuration.
-9. Add a plant. The app saves it locally and starts a decision refresh.
-10. If weather is unavailable, run once while online first so the cache exists.
+Run `./gradlew :app:testDebugUnitTest :app:assembleDebug` to check model parity and build a debug APK.
 
 When Alfred provides a revised model export, replace:
 

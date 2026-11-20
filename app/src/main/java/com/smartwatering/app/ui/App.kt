@@ -15,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smartwatering.app.ui.state.SmartWateringViewModel
@@ -23,8 +25,13 @@ import androidx.navigation.compose.*
 import com.smartwatering.app.ui.screens.*
 
 @Composable
-fun SmartWateringApp() {
-    var darkMode by rememberSaveable { mutableStateOf(false) }
+fun SmartWateringApp(todayRequest: Int = 0) {
+    val context = LocalContext.current
+    val preferences = remember(context) { context.getSharedPreferences("garden_preferences", 0) }
+    val systemDark = isSystemInDarkTheme()
+    var darkMode by rememberSaveable {
+        mutableStateOf(preferences.getBoolean("dark_mode", systemDark))
+    }
     val view = LocalView.current
     val activity = view.context as? android.app.Activity
     SideEffect {
@@ -35,6 +42,9 @@ fun SmartWateringApp() {
     val garden: SmartWateringViewModel = viewModel()
     SmartWateringTheme(darkTheme = darkMode) {
         val nav = rememberNavController()
+        LaunchedEffect(todayRequest) {
+            if (todayRequest > 0) nav.popBackStack("today", inclusive = false)
+        }
         val route = nav.currentBackStackEntryAsState().value?.destination?.route
         val tabs = listOf(
             AppTab("Today", "today", Icons.Filled.WaterDrop, Icons.Outlined.WaterDrop),
@@ -73,7 +83,10 @@ fun SmartWateringApp() {
                 composable("plants") { PlantsScreen(nav, garden) }
                 composable("add") { AddPlantScreen(nav, garden) }
                 composable("settings") {
-                    SettingsScreen(darkMode = darkMode, onDarkModeChange = { darkMode = it }, vm = garden)
+                    SettingsScreen(darkMode = darkMode, onDarkModeChange = {
+                        darkMode = it
+                        preferences.edit().putBoolean("dark_mode", it).apply()
+                    }, vm = garden)
                 }
                 composable("plant/{id}") { entry ->
                     PlantDetailScreen(entry.arguments?.getString("id")?.toLongOrNull(), nav, garden)
