@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Thunderstorm
 import androidx.compose.material.icons.filled.WaterDrop
@@ -39,25 +40,28 @@ fun TodayScreen(nav: NavHostController, vm: SmartWateringViewModel = viewModel()
     val state by vm.state.collectAsState()
     val today = LocalDate.now(NairobiZone)
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 18.dp)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        TodayHeader(today = today, state = state, onRefresh = vm::refresh)
-        Spacer(Modifier.height(18.dp))
-        DailyPlanCard(state = state)
-        Spacer(Modifier.height(12.dp))
-        WeatherCards(weather = state.weather, today = today)
-        Spacer(Modifier.height(12.dp))
-        CareStreakCard(state = state, today = today)
-        Spacer(Modifier.height(20.dp))
-        Text(
-            "Your plants",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.height(10.dp))
+        item { TodayHeader(today = today, state = state, onRefresh = vm::refresh) }
+        item { DailyPlanCard(state = state) }
+        state.refreshMessage?.let { message ->
+            item { Text(message, color = MaterialTheme.colorScheme.error) }
+        }
+        item { WeatherCards(weather = state.weather, today = today) }
+        if (state.checkIns.any { it.type == CheckInType.WATERED }) {
+            item { CareStreakCard(state = state, today = today) }
+        }
+        if (state.plants.isNotEmpty()) item {
+            Text(
+                "Your plants",
+                modifier = Modifier.padding(top = 6.dp),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         TodayPlantList(state, nav)
     }
 }
@@ -104,36 +108,25 @@ private fun DailyPlanCard(state: GardenUiState) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(22.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Spa, contentDescription = null, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Today’s care", style = MaterialTheme.typography.labelLarge)
+            }
+            Spacer(Modifier.height(14.dp))
             Text(
-                "TODAY’S PLAN",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f)
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "$plantsToWater of ${state.plants.size}",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                if (plantsToWater == 1) "plant needs a drink" else "plants need a drink",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onPrimary
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                planDescription(state, plantsToWater),
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .86f)
+                when {
+                    state.plants.isEmpty() -> "Start your garden"
+                    plantsToWater == 1 -> "One plant needs water"
+                    plantsToWater > 1 -> "$plantsToWater plants need water"
+                    state.plants.any { plant -> state.decisions.none { it.plantId == plant.id } } ->
+                        "Waiting for a care plan"
+                    else -> "No watering due today"
+                },
+                style = MaterialTheme.typography.headlineLarge
             )
         }
     }
-}
-
-private fun planDescription(state: GardenUiState, plantsToWater: Int): String = when {
-    state.plants.isEmpty() -> "Add your first plant to get a daily care plan."
-    plantsToWater > 0 -> "Start with the thirsty ones below."
-    else -> "Your plants are looking settled for today."
 }
 
 @Composable
@@ -148,9 +141,11 @@ private fun WeatherCards(weather: DailyWeather?, today: LocalDate) {
         )
         WeatherSummary(
             modifier = Modifier.weight(1f),
-            title = "Recent rainfall",
-            value = index?.let { "${"%.1f".format(weather?.rain?.getOrNull(it) ?: 0.0)} mm" }
-                ?: "No cached data",
+            title = "Yesterday’s rain",
+            value = weatherIndex(weather, today.minusDays(1))
+                ?.let { weather?.rain?.getOrNull(it) }
+                ?.takeIf { it.isFinite() }
+                ?.let { "${"%.1f".format(it)} mm" } ?: "Unavailable",
             icon = Icons.Filled.WaterDrop
         )
     }
@@ -158,10 +153,9 @@ private fun WeatherCards(weather: DailyWeather?, today: LocalDate) {
 
 private fun weatherIndex(weather: DailyWeather?, today: LocalDate): Int? =
     weather?.dates?.indexOf(today.toString())?.takeIf { it >= 0 }
-        ?: weather?.dates?.lastIndex
 
 private fun weatherSummary(weather: DailyWeather?, index: Int): String {
-    val temperature = weather?.tempMean?.getOrNull(index)?.toInt()
+    val temperature = weather?.tempMean?.getOrNull(index)?.takeIf { it.isFinite() }?.toInt()
     val condition = weather?.condition(index) ?: "Condition unavailable"
     return temperature?.let { "$it°C · $condition" } ?: condition
 }
@@ -236,68 +230,67 @@ private fun CareStreakCard(state: GardenUiState, today: LocalDate) {
     }
 }
 
-@Composable
-private fun TodayPlantList(state: GardenUiState, nav: NavHostController) {
+private fun androidx.compose.foundation.lazy.LazyListScope.TodayPlantList(state: GardenUiState, nav: NavHostController) {
     if (state.plants.isEmpty()) {
-        EmptyPanel(
-            "Start with one plant",
-            "Add a plant and get a simple, weather-aware answer each day.",
-            "Add your first plant"
-        ) { nav.navigate("add") }
+        item {
+            EmptyPanel(
+                "What are you growing?",
+                "Save a plant to get a daily watering recommendation.",
+                "Add a plant"
+            ) { nav.navigate("add") }
+        }
         return
     }
 
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        contentPadding = PaddingValues(bottom = 12.dp)
-    ) {
-        items(state.plants, key = Plant::id) { plant ->
-            val decision = state.decisions.firstOrNull { it.plantId == plant.id }
-            Card(
-                onClick = { nav.navigate("plant/${plant.id}") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+    items(
+        state.plants.sortedByDescending { plant -> state.decisions.any { it.plantId == plant.id && it.water } },
+        key = Plant::id
+    ) { plant ->
+        val decision = state.decisions.firstOrNull { it.plantId == plant.id }
+        Card(
+            onClick = { nav.navigate("plant/${plant.id}") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    SpeciesAvatar(plant.species, 46.dp)
-                    Spacer(Modifier.width(13.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            plant.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            plant.species.label,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(5.dp))
-                        Text(
-                            decision?.reason ?: "Your care plan is updating",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    AssistChip(
-                        onClick = { nav.navigate("plant/${plant.id}") },
-                        label = {
-                            Text(
-                                when {
-                                    decision == null -> "Checking"
-                                    decision.water -> "Water"
-                                    else -> "Wait"
-                                }
-                            )
-                        }
+                SpeciesAvatar(plant.species, 46.dp)
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        plant.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        plant.species.label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        decision?.reason ?: "Your care plan is updating",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                AssistChip(
+                    onClick = { nav.navigate("plant/${plant.id}") },
+                    label = {
+                        Text(
+                            when {
+                                decision == null -> "Checking"
+                                decision.water -> "Water"
+                                else -> "Wait"
+                            }
+                        )
+                    }
+                )
             }
         }
     }

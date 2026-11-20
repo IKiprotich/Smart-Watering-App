@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalFlorist
+import androidx.compose.material.icons.filled.Grass
+import androidx.compose.material.icons.filled.Park
+import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,8 +35,15 @@ fun EmptyPanel(title: String, message: String, action: String, onAction: () -> U
 
 @Composable
 fun SpeciesAvatar(species: Species, size: Dp = 44.dp) {
+    val icon = when (species) {
+        Species.SUCCULENT -> Icons.Filled.Park
+        Species.HERB -> Icons.Filled.Eco
+        Species.FLOWERING -> Icons.Filled.LocalFlorist
+        Species.FERN -> Icons.Filled.Grass
+        Species.LEAFY_VEGETABLE -> Icons.Filled.Spa
+    }
     Box(Modifier.size(size).background(MaterialTheme.colorScheme.primary.copy(alpha = .13f), CircleShape), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.LocalFlorist, contentDescription = species.label, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(size * .52f))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(size * .52f))
     }
 }
 

@@ -17,7 +17,7 @@ The app is organized by responsibility so screens stay focused and data access i
 - `work/` schedules and runs daily predictions. The worker uses the repository instead of accessing Room from UI code.
 - `ui/util/` contains date formatting and CSV export helpers.
 
-Temporary dummy `decision_tree.json` and `android_parity_cases.json` files are included so the app can run while Alfred prepares the real export. They use one simple rule: water after more than one rain-free day. Replace both copies with Alfred's files when they arrive.
+The project now includes Alfred's schema v1 decision tree and 30 matching parity cases. The tree and parity data share the same 12-feature order; `TreeParityTest` checks the order and every expected class. The model metadata also records the weather source and plant parameters.
 
 ## Run
 
@@ -26,7 +26,7 @@ Open this folder in Android Studio, allow Gradle sync, and run the `app` configu
 ## Run it
 
 1. Install the latest stable Android Studio.
-2. Open `/Users/ian/Documents/ChatGPT/mobile app`.
+2. Open `/Users/ian/Documents/mobile app`.
 3. Open `Android Studio > Settings > Build, Execution, Deployment > Build Tools > Gradle`.
 4. Set `Gradle JDK` to `Embedded JDK` or another JDK 17 installation.
 5. Open `Tools > SDK Manager` and install `Android 15 (API 35)` including `Android SDK Platform 35`.
@@ -36,7 +36,7 @@ Open this folder in Android Studio, allow Gradle sync, and run the `app` configu
 9. Add a plant. The app saves it locally and starts a decision refresh.
 10. If weather is unavailable, run once while online first so the cache exists.
 
-When Alfred sends the real model, replace:
+When Alfred provides a revised model export, replace:
 
 - `app/src/main/assets/decision_tree.json`
 - `app/src/test/resources/decision_tree.json`

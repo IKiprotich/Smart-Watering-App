@@ -23,8 +23,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlantDetailScreen(id: Long?, nav: NavHostController, vm: SmartWateringViewModel = viewModel()) {
     if (id == null) { MissingPlant { nav.popBackStack() }; return }
-    val plant by vm.plant(id).collectAsState(initial = null)
-    val history by vm.history(id).collectAsState(initial = emptyList())
+    val plant by remember(id) { vm.plant(id) }.collectAsState(initial = null)
+    val history by remember(id) { vm.history(id) }.collectAsState(initial = emptyList())
     val gardenState by vm.state.collectAsState()
     val decision = gardenState.decisions.firstOrNull { it.plantId == id }
     val scope = rememberCoroutineScope()
@@ -63,13 +63,13 @@ fun PlantDetailScreen(id: Long?, nav: NavHostController, vm: SmartWateringViewMo
                 ) {
                     Column(Modifier.fillMaxWidth().padding(20.dp)) {
                         Text(
-                            "TODAY’S CARE",
+                            when (decision?.water) { true -> "Water today"; false -> "Wait today"; null -> "Today’s care" },
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            decision?.reason ?: "Your care plan is updating",
+                            decision?.reason ?: "Waiting for today’s care plan",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -86,7 +86,7 @@ fun PlantDetailScreen(id: Long?, nav: NavHostController, vm: SmartWateringViewMo
                                         if (result == SnackbarResult.ActionPerformed) {
                                             vm.undoCheckIn(checkInId)
                                         }
-                                    }
+                                    }.onFailure { snackbar.showSnackbar("Couldn’t record watering. Try again.") }
                                 }
                             },
                             enabled = !gardenState.isLoggingWater,
@@ -94,7 +94,7 @@ fun PlantDetailScreen(id: Long?, nav: NavHostController, vm: SmartWateringViewMo
                         ) {
                             Icon(Icons.Filled.WaterDrop, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("I watered this plant")
+                            Text("Log watering")
                         }
                     }
                 }

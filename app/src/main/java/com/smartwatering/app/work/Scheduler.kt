@@ -6,16 +6,21 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.WorkInfo
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
 import java.util.concurrent.TimeUnit
 
 object Scheduler {
-    fun runNow(context: Context) {
+    fun runNow(context: Context): Flow<WorkInfo> {
         val request = OneTimeWorkRequestBuilder<DailyDecisionWorker>().build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
+        val manager = WorkManager.getInstance(context)
+        manager.enqueueUniqueWork(
             "decision-now",
             ExistingWorkPolicy.REPLACE,
             request
         )
+        return manager.getWorkInfoByIdFlow(request.id).filterNotNull()
     }
 
     fun schedule(context: Context) {

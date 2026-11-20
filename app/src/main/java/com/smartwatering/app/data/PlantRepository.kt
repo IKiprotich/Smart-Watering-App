@@ -16,6 +16,8 @@ class PlantRepository(private val database: AppDatabase) {
 
     suspend fun allPlants(): List<Plant> = dao.allPlants()
 
+    fun observeCheckIns() = dao.observeCheckIns()
+
     suspend fun allCheckIns(): List<CheckIn> = dao.allCheckIns()
 
     suspend fun allDecisions(): List<DecisionRecord> = dao.allDecisions()

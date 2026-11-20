@@ -87,7 +87,7 @@ private fun PlantsHeader(onAdd: () -> Unit) {
     ) {
         Column {
             Text(
-                "Your collection",
+                "Your garden",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -294,7 +294,7 @@ private fun Plant.matches(query: String, filter: PlantFilter, state: GardenUiSta
     val needsWater = state.decisions.any { it.plantId == id && it.water }
     val recentlyWatered = state.checkIns
         .asSequence()
-        .filter { it.plantId == id }
+        .filter { it.plantId == id && it.type == com.smartwatering.app.data.CheckInType.WATERED }
         .maxOfOrNull { it.timestamp }
         ?.let { System.currentTimeMillis() - it < WEEK_MS }
         ?: false
@@ -302,8 +302,8 @@ private fun Plant.matches(query: String, filter: PlantFilter, state: GardenUiSta
     return matchesQuery && when (filter) {
         PlantFilter.ALL -> true
         PlantFilter.NEEDS_WATER -> needsWater
-        PlantFilter.DOING_WELL -> !needsWater
-        PlantFilter.RECENTLY_ADDED -> recentlyWatered
+        PlantFilter.DOING_WELL -> state.decisions.any { it.plantId == id && !it.water }
+        PlantFilter.RECENTLY_WATERED -> recentlyWatered
     }
 }
 

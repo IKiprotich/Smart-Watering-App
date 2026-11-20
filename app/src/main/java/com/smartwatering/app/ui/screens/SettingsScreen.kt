@@ -16,6 +16,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -34,7 +36,7 @@ fun SettingsScreen(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit, vm: S
             exporting = true
             runCatching { vm.exportCsv(uri) }
                 .onSuccess { snackbar.showSnackbar("Care history exported") }
-                .onFailure { snackbar.showSnackbar(it.message ?: "Export failed") }
+                .onFailure { snackbar.showSnackbar("Couldn’t export care history. Try again.") }
             exporting = false
         }
     }
@@ -50,7 +52,7 @@ fun SettingsScreen(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit, vm: S
         ) {
             Column {
                 Text(
-                    "Make it yours",
+                    "Garden preferences",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -71,7 +73,11 @@ fun SettingsScreen(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit, vm: S
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Switch(checked = darkMode, onCheckedChange = onDarkModeChange)
+                    Switch(
+                        checked = darkMode,
+                        onCheckedChange = onDarkModeChange,
+                        modifier = Modifier.semantics { contentDescription = "Dark appearance" }
+                    )
                 }
             }
             SettingsSection("Garden setup") {

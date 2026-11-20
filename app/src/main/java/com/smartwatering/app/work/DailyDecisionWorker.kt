@@ -10,6 +10,7 @@ import com.smartwatering.app.model.DecisionTree
 import com.smartwatering.app.model.FeatureBuilder
 import com.smartwatering.app.model.ReasonLine
 import com.smartwatering.app.weather.WeatherClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -25,7 +26,8 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val weather = loadWeather() ?: return@withContext Result.retry()
         val today = LocalDate.now(Nairobi)
-        if (weather.dates.lastOrNull() != today.toString()) return@withContext Result.retry()
+        val requiredDates = (3L downTo 0L).map { today.minusDays(it).toString() }
+        if (weather.dates.takeLast(4) != requiredDates) return@withContext Result.retry()
 
         val tree = loadDecisionTree() ?: return@withContext Result.failure()
         repository.allPlants().forEach { plant ->
@@ -34,6 +36,7 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
                 DecisionRecord(plant.id, today.toString(), false, "Watered today")
             } else {
                 val features = FeatureBuilder.build(weather, plant.species, daysSinceWatered)
+                if (features.any { !it.isFinite() }) return@withContext Result.retry()
                 val prediction = tree.predict(features)
                 DecisionRecord(
                     plantId = plant.id,
@@ -50,15 +53,17 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
 
     private suspend fun loadWeather() = try {
         WeatherClient.fetch(applicationContext)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
     } catch (_: Exception) {
-        WeatherClient.cached(applicationContext)
+        runCatching { WeatherClient.cached(applicationContext) }.getOrNull()
     }
 
     private fun loadDecisionTree(): DecisionTree? = try {
         val json = applicationContext.assets.open("decision_tree.json")
             .bufferedReader()
             .use { it.readText() }
-        DecisionTree(json)
+        DecisionTree(json).also { require(it.features == FeatureBuilder.featureOrder) }
     } catch (_: Exception) {
         null
     }
@@ -66,7 +71,7 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
     private suspend fun daysSinceLastWatering(plantId: Long, today: LocalDate): Int {
         val lastWatered = repository.lastWatered(plantId) ?: return 1
         val wateredDate = Instant.ofEpochMilli(lastWatered).atZone(Nairobi).toLocalDate()
-        return ChronoUnit.DAYS.between(wateredDate, today).toInt()
+        return ChronoUnit.DAYS.between(wateredDate, today).toInt().coerceAtLeast(0)
     }
 
     companion object {

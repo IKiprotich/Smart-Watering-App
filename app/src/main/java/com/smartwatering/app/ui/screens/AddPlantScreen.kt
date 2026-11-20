@@ -37,7 +37,7 @@ fun AddPlantScreen(nav: NavHostController, vm: SmartWateringViewModel = viewMode
         Spacer(Modifier.height(8.dp))
         Icon(Icons.Filled.LocalFlorist, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Text("Add a plant", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
-        Text("We’ll use its type to shape a simple daily care plan.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Pick the type that best matches your plant.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
         Text("Plant name", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(8.dp))
@@ -73,7 +73,7 @@ fun AddPlantScreen(nav: NavHostController, vm: SmartWateringViewModel = viewMode
                 scope.launch {
                     vm.addPlant(name, Species.valueOf(selected))
                         .onSuccess { nav.popBackStack() }
-                        .onFailure { error = it.message ?: "Could not save this plant" }
+                        .onFailure { error = "Couldn’t save your plant. Try again." }
                 }
             },
             enabled = !state.isSavingPlant,
@@ -83,7 +83,7 @@ fun AddPlantScreen(nav: NavHostController, vm: SmartWateringViewModel = viewMode
             if (state.isSavingPlant) {
                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
-                Text("Add to my plants")
+                Text("Save plant")
             }
         }
     }

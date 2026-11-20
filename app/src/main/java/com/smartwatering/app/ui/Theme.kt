@@ -14,19 +14,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Leaf = Color(0xFF2D6A4F)
-private val LeafDark = Color(0xFF9BD4B6)
-private val Canvas = Color(0xFFF7F8F4)
+private val Leaf = Color(0xFF245646)
+private val LeafDark = Color(0xFFAFDDC1)
+private val Canvas = Color(0xFFF8FAF4)
 private val Ink = Color(0xFF17211B)
 private val Muted = Color(0xFF657067)
 
 private val Light = lightColorScheme(
     primary = Leaf,
     onPrimary = Color.White,
-    secondary = Color(0xFFE4A853),
+    primaryContainer = Color(0xFFDCEEDC),
+    onPrimaryContainer = Color(0xFF153A29),
+    secondary = Color(0xFFE5BA71),
     background = Canvas,
     surface = Color.White,
-    surfaceVariant = Color(0xFFEEF1EB),
+    surfaceVariant = Color(0xFFEAF0E5),
     onBackground = Ink,
     onSurface = Ink,
     onSurfaceVariant = Muted,
@@ -39,6 +41,8 @@ private val Light = lightColorScheme(
 private val Dark = darkColorScheme(
     primary = LeafDark,
     onPrimary = Color(0xFF102118),
+    primaryContainer = Color(0xFF293F32),
+    onPrimaryContainer = Color(0xFFDBF1E0),
     secondary = Color(0xFFF0BD69),
     background = Color(0xFF101611),
     surface = Color(0xFF18231C),
@@ -79,7 +83,8 @@ private fun gardenTypography() = Typography(
         letterSpacing = (-1.2).sp
     ),
     headlineLarge = TextStyle(
-        fontSize = 32.sp,
+        fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+        fontSize = 35.sp,
         lineHeight = 38.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = (-.6).sp

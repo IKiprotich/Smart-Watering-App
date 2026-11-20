@@ -44,20 +44,33 @@ data class DailyWeather(
 
 object FeatureBuilder {
     const val MIN_EFFECTIVE_RAIN = 2.0
+    val featureOrder = listOf(
+        "temp_mean_yday", "temp_max_yday", "humidity_mean_yday", "wind_max_yday",
+        "rain_yday", "rain_last_3d", "et0_yday", "et0_last_3d", "days_since_rain",
+        "days_since_watered", "kc", "threshold_mm"
+    )
+
     fun build(w: DailyWeather, species: Species, daysSinceWatered: Int): FloatArray {
         val y = w.dates.size - 2
-        require(y >= 3) { "Need at least 4 past days of weather" }
+        require(y >= 2) { "Need at least 3 past days of weather" }
         val rainLast3 = w.rain[y - 2] + w.rain[y - 1] + w.rain[y]
         val et0Last3 = w.et0[y - 2] + w.et0[y - 1] + w.et0[y]
-        var daysSinceRain = 0
-        var i = y
-        while (i >= 0 && w.rain[i] < MIN_EFFECTIVE_RAIN) { daysSinceRain++; i-- }
         return floatArrayOf(
             w.tempMean[y].toFloat(), w.tempMax[y].toFloat(), w.humidityMean[y].toFloat(),
             w.windMax[y].toFloat(), w.rain[y].toFloat(), rainLast3.toFloat(),
-            w.et0[y].toFloat(), et0Last3.toFloat(), daysSinceRain.toFloat(),
+            w.et0[y].toFloat(), et0Last3.toFloat(), dryDays(w, y),
             daysSinceWatered.toFloat(), species.kc, species.thresholdMm
         )
+    }
+
+    private fun dryDays(weather: DailyWeather, yesterday: Int): Float {
+        // The shipped tree's highest dry-day split is 70.
+        for (days in 0 until 71) {
+            val rainfall = weather.rain.getOrNull(yesterday - days) ?: return Float.NaN
+            if (!rainfall.isFinite()) return Float.NaN
+            if (rainfall >= MIN_EFFECTIVE_RAIN) return days.toFloat()
+        }
+        return 71f
     }
 }
 

@@ -105,6 +105,9 @@ interface AppDao {
     @Query("SELECT * FROM check_ins ORDER BY timestamp")
     suspend fun allCheckIns(): List<CheckIn>
 
+    @Query("SELECT * FROM check_ins ORDER BY timestamp")
+    fun observeCheckIns(): Flow<List<CheckIn>>
+
     @Query("SELECT * FROM decisions ORDER BY date")
     suspend fun allDecisions(): List<DecisionRecord>
 }
