@@ -63,6 +63,14 @@ object FeatureBuilder {
         )
     }
 
+    fun acceptsForPrediction(values: FloatArray): Boolean {
+        if (values.size != featureOrder.size || values.any { !it.isFinite() }) return false
+        val (mean, max, humidity) = values
+        return mean in -5f..45f && max in mean..45f && humidity in 0f..100f &&
+            (3..8).all { values[it] >= 0f } &&
+            values[9] >= 1f && values[10] > 0f && values[11] > 0f
+    }
+
     private fun dryDays(weather: DailyWeather, yesterday: Int): Float {
         // The shipped tree's highest dry-day split is 70.
         for (days in 0 until 71) {
@@ -72,31 +80,4 @@ object FeatureBuilder {
         }
         return 71f
     }
-}
-
-object ReasonLine {
-    private fun days(n: Int) = "$n day${if (n == 1) "" else "s"}"
-
-    private fun phrase(s: Step): Pair<String, Boolean>? {
-        val v = s.value
-        return when (s.feature) {
-            8 -> if (v < 1f) "Rained yesterday" to false else "No proper rain for ${days(v.toInt())}" to true
-            5 -> if (v < 1f) "No rain in the last 3 days" to true else "${"%.0f".format(v)} mm of rain in the last 3 days" to false
-            4 -> if (v < 1f) "Dry yesterday" to true else "Rained ${"%.0f".format(v)} mm yesterday" to false
-            6, 7 -> if (s.wentLeft) "Mild weather" to false else "Hot, drying weather" to true
-            9 -> if (s.wentLeft) "Watered ${days(v.toInt())} ago" to false else "Last watered ${days(v.toInt())} ago" to true
-            2 -> if (s.wentLeft) "Dry air yesterday" to true else "Humid yesterday" to false
-            0, 1 -> if (s.wentLeft) "Cool yesterday" to false else "Warm yesterday" to true
-            else -> null
-        }
-    }
-
-    fun of(d: Decision): String = d.path.asReversed()
-        .mapNotNull(::phrase)
-        .filter { it.second == d.water }
-        .map { it.first }
-        .distinct()
-        .take(2)
-        .joinToString(", ")
-        .ifEmpty { if (d.water) "Soil is likely dry" else "Soil is likely still moist" }
 }

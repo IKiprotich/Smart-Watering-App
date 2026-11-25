@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter
 import android.content.Context
 import android.net.Uri
 import com.smartwatering.app.data.PlantRepository
+import com.smartwatering.app.model.ReasonLine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -23,7 +24,7 @@ class CsvExporter(private val repository: PlantRepository) {
                 val species = plant?.species?.name ?: "?"
                 out.write(
                     "decision,${record.date},${quote(plant?.name ?: "?")}," +
-                        "$species,$decision,${quote(record.reason)},${quote(record.features)}\n"
+                        "$species,$decision,${quote(ReasonLine.display(record.reason))},${quote(record.features)}\n"
                 )
             }
             checkIns.forEach { record ->

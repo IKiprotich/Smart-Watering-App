@@ -1,33 +1,47 @@
 package com.smartwatering.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Thunderstorm
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.WbCloudy
+import androidx.compose.material.icons.filled.Grain
+import androidx.compose.material.icons.filled.Umbrella
+import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.smartwatering.app.data.CheckInType
 import com.smartwatering.app.data.Plant
 import com.smartwatering.app.model.DailyWeather
+import com.smartwatering.app.model.WeatherGlyph
+import com.smartwatering.app.model.ReasonLine
+import com.smartwatering.app.model.formatRainfall
+import com.smartwatering.app.ui.components.DailyCareCard
 import com.smartwatering.app.ui.components.EmptyPanel
+import com.smartwatering.app.ui.components.StatusPill
 import com.smartwatering.app.ui.components.SpeciesAvatar
 import com.smartwatering.app.ui.state.GardenUiState
 import com.smartwatering.app.ui.state.SmartWateringViewModel
@@ -38,16 +52,35 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TodayScreen(nav: NavHostController, vm: SmartWateringViewModel = viewModel()) {
+fun TodayScreen(nav: NavHostController, vm: SmartWateringViewModel = viewModel(), gardenName: String = "") {
     val state by vm.state.collectAsState()
     val today = LocalDate.now(NairobiZone)
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    val hasHistory = state.weather != null || state.checkIns.isNotEmpty()
+
+    if (showHistory && hasHistory) {
+        ModalBottomSheet(
+            onDismissRequest = { showHistory = false },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 20.dp, end = 20.dp, bottom = 24.dp)
+            ) {
+                GardenWeek(state.weather, state.checkIns, today)
+            }
+        }
+    }
 
     PullToRefreshBox(
         isRefreshing = state.isRefreshing,
         onRefresh = vm::refresh,
         modifier = Modifier.fillMaxSize()
     ) {
-        TodayContent(state, today, nav, vm::refresh)
+        TodayContent(state, today, nav, vm::refresh, gardenName, vm::retryPlants,
+            onHistory = if (hasHistory) ({ showHistory = true }) else null)
     }
 }
 
@@ -56,21 +89,33 @@ private fun TodayContent(
     state: GardenUiState,
     today: LocalDate,
     nav: NavHostController,
-    refresh: () -> Unit
+    refresh: () -> Unit,
+    gardenName: String,
+    retryPlants: () -> Unit,
+    onHistory: (() -> Unit)?
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { TodayHeader(today = today, state = state, onRefresh = refresh) }
-        item { DailyPlanCard(state = state) }
+        item { TodayHeader(today = today, state = state, onRefresh = refresh, gardenName = gardenName) }
+        item {
+            if (state.plantsError) {
+                EmptyPanel("Can’t open your garden", "Try loading your saved plants again.", "Retry", retryPlants)
+            } else {
+                DailyCareCard(state) { nav.navigate("add") }
+            }
+        }
         state.refreshMessage?.let { message ->
             item { Text(message, color = MaterialTheme.colorScheme.error) }
         }
-        item { WeatherCards(weather = state.weather, today = today) }
-        if (state.checkIns.any { it.type == CheckInType.WATERED }) {
-            item { CareStreakCard(state = state, today = today) }
+        item {
+            WeatherCards(weather = state.weather, today = today)
+            WeatherFreshness(state.weatherUpdatedAt, state.offline)
+        }
+        if (onHistory != null) item {
+            HistoryShortcut(state, today, onHistory)
         }
         if (state.plants.isNotEmpty()) item {
             Text(
@@ -80,25 +125,25 @@ private fun TodayContent(
                 fontWeight = FontWeight.SemiBold
             )
         }
-        TodayPlantList(state, nav)
+        if (state.plants.isNotEmpty()) TodayPlantList(state, nav)
     }
 }
 
 @Composable
-private fun TodayHeader(state: GardenUiState, today: LocalDate, onRefresh: () -> Unit) {
+private fun TodayHeader(state: GardenUiState, today: LocalDate, onRefresh: () -> Unit, gardenName: String) {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(
                 today.format(DateTimeFormatter.ofPattern("EEEE, MMM d")),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "Your garden",
+                gardenName.ifBlank { "Your garden" },
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.SemiBold
             )
@@ -108,41 +153,7 @@ private fun TodayHeader(state: GardenUiState, today: LocalDate, onRefresh: () ->
             enabled = !state.isRefreshing,
             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
         ) {
-            if (state.isRefreshing) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Filled.Refresh, contentDescription = "Refresh today's watering plan")
-            }
-        }
-    }
-}
-
-@Composable
-private fun DailyPlanCard(state: GardenUiState) {
-    val plantsToWater = state.decisions.count { it.water }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
-        shape = MaterialTheme.shapes.extraLarge,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(22.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Spa, contentDescription = null, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Today’s care", style = MaterialTheme.typography.labelLarge)
-            }
-            Spacer(Modifier.height(14.dp))
-            Text(
-                when {
-                    state.plants.isEmpty() -> "Start your garden"
-                    plantsToWater == 1 -> "One plant needs water"
-                    plantsToWater > 1 -> "$plantsToWater plants need water"
-                    state.plants.any { plant -> state.decisions.none { it.plantId == plant.id } } ->
-                        "Waiting for a care plan"
-                    else -> "No watering due today"
-                },
-                style = MaterialTheme.typography.headlineLarge
-            )
+            Icon(Icons.Filled.Refresh, contentDescription = "Refresh today's watering plan")
         }
     }
 }
@@ -150,20 +161,23 @@ private fun DailyPlanCard(state: GardenUiState) {
 @Composable
 private fun WeatherCards(weather: DailyWeather?, today: LocalDate) {
     val index = weatherIndex(weather, today)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         WeatherSummary(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
             title = "Nairobi weather",
             value = index?.let { weatherSummary(weather, it) } ?: "Waiting for weather",
             icon = weatherIcon(weather, index)
         )
         WeatherSummary(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
             title = "Yesterday’s rain",
             value = weatherIndex(weather, today.minusDays(1))
                 ?.let { weather?.rain?.getOrNull(it) }
                 ?.takeIf { it.isFinite() }
-                ?.let { "${"%.1f".format(it)} mm" } ?: "Unavailable",
+                ?.let { formatRainfall(it) } ?: "Unavailable",
             icon = Icons.Filled.WaterDrop
         )
     }
@@ -182,14 +196,15 @@ private fun weatherIcon(
     weather: DailyWeather?,
     index: Int?
 ): androidx.compose.ui.graphics.vector.ImageVector {
-    val code = index?.let { weather?.weatherCode?.getOrNull(it) } ?: -1
-    return when (code) {
-        0, 1 -> Icons.Filled.WbSunny
-        2, 3, 45, 48 -> Icons.Filled.Cloud
-        in 51..67, in 80..82 -> Icons.Filled.WaterDrop
-        in 71..77, in 85..86 -> Icons.Filled.AcUnit
-        in 95..99 -> Icons.Filled.Thunderstorm
-        else -> Icons.Filled.Cloud
+    return when (WeatherGlyph.forCode(index?.let { weather?.weatherCode?.getOrNull(it) })) {
+        WeatherGlyph.SUN -> Icons.Filled.WbSunny
+        WeatherGlyph.PARTLY_CLOUDY -> Icons.Filled.WbCloudy
+        WeatherGlyph.CLOUD, WeatherGlyph.UNKNOWN -> Icons.Filled.Cloud
+        WeatherGlyph.FOG -> Icons.Filled.Waves
+        WeatherGlyph.DRIZZLE -> Icons.Filled.Grain
+        WeatherGlyph.RAIN -> Icons.Filled.Umbrella
+        WeatherGlyph.SNOW -> Icons.Filled.AcUnit
+        WeatherGlyph.THUNDER -> Icons.Filled.Thunderstorm
     }
 }
 
@@ -224,42 +239,41 @@ private fun WeatherSummary(
 }
 
 @Composable
-private fun CareStreakCard(state: GardenUiState, today: LocalDate) {
-    val wateredDates = state.checkIns
-        .filter { it.type == CheckInType.WATERED }
-        .map { localDate(it.timestamp) }
-        .toSet()
-    val streak = careStreak(wateredDates, today)
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = .16f)
-        ),
+private fun HistoryShortcut(state: GardenUiState, today: LocalDate, onClick: () -> Unit) {
+    val firstDay = today.minusDays(6)
+    val recent = state.checkIns.count {
+        val date = localDate(it.timestamp)
+        date in firstDay..today
+    }
+    OutlinedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        modifier = Modifier.fillMaxWidth()
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Text(
-            if (streak > 0) "$streak day${if (streak == 1) "" else "s"} of garden care"
-            else "Your care streak starts today",
-            Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Medium
-        )
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.primaryContainer) {
+                Icon(Icons.Outlined.CalendarMonth, contentDescription = null,
+                    modifier = Modifier.padding(9.dp).size(20.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("View last 7 days", style = MaterialTheme.typography.titleSmall)
+                val label = if (recent == 1) "1 check-in" else "$recent check-ins"
+                Text("$label · Rain and care activity", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.TodayPlantList(state: GardenUiState, nav: NavHostController) {
-    if (state.plants.isEmpty()) {
-        item {
-            EmptyPanel(
-                "What are you growing?",
-                "Save a plant to get a daily watering recommendation.",
-                "Add a plant"
-            ) { nav.navigate("add") }
-        }
-        return
-    }
-
     items(
         state.plants.sortedByDescending { plant -> state.decisions.any { it.plantId == plant.id && it.water } },
         key = Plant::id
@@ -267,13 +281,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.TodayPlantList(state:
         val decision = state.decisions.firstOrNull { it.plantId == plant.id }
         val previous = state.yesterdayDecisions.firstOrNull { it.plantId == plant.id }
             ?.takeIf { state.refreshMessage != null }
-        Card(
+        OutlinedCard(
             onClick = { nav.navigate("plant/${plant.id}") },
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            shape = MaterialTheme.shapes.large,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Row(
                 Modifier.padding(16.dp),
@@ -294,36 +307,23 @@ private fun androidx.compose.foundation.lazy.LazyListScope.TodayPlantList(state:
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        decision?.reason ?: previous?.let {
-                            "Yesterday: ${if (it.water) "Water" else "Wait"}. ${it.reason}"
+                        decision?.reason?.let(ReasonLine::display) ?: previous?.let {
+                            "Yesterday: ${if (it.water) "Water" else "Wait"}. ${ReasonLine.display(it.reason)}"
                         } ?: "Waiting for today’s care plan",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                AssistChip(
-                    onClick = { nav.navigate("plant/${plant.id}") },
-                    label = {
-                        Text(
-                            when {
-                                decision == null -> if (previous != null) "Yesterday" else "Checking"
-                                decision.water -> "Water"
-                                else -> "Wait"
-                            }
-                        )
-                    }
+                Spacer(Modifier.width(8.dp))
+                StatusPill(
+                    label = when {
+                        decision == null -> if (previous != null) "Yesterday" else "Checking"
+                        decision.water -> "Water"
+                        else -> "Wait"
+                    },
+                    needsWater = decision?.water == true
                 )
             }
         }
     }
-}
-
-private fun careStreak(wateredDates: Set<LocalDate>, today: LocalDate): Int {
-    var date = if (today in wateredDates) today else today.minusDays(1)
-    var count = 0
-    while (date in wateredDates) {
-        count++
-        date = date.minusDays(1)
-    }
-    return count
 }

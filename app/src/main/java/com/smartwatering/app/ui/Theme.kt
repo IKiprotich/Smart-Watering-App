@@ -14,43 +14,51 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Leaf = Color(0xFF245646)
-private val LeafDark = Color(0xFFAFDDC1)
-private val Canvas = Color(0xFFF8FAF4)
-private val Ink = Color(0xFF17211B)
-private val Muted = Color(0xFF657067)
+private val Rain = Color(0xFF24547A)
+private val RainDark = Color(0xFFADD5F2)
+private val Canvas = Color(0xFFF5F6F2)
+private val Ink = Color(0xFF182825)
+private val Muted = Color(0xFF52615D)
 
 private val Light = lightColorScheme(
-    primary = Leaf,
+    primary = Rain,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFDCEEDC),
-    onPrimaryContainer = Color(0xFF153A29),
-    secondary = Color(0xFFE5BA71),
+    primaryContainer = Color(0xFFDEEAF4),
+    onPrimaryContainer = Color(0xFF103653),
+    secondary = Color(0xFF45634B),
+    secondaryContainer = Color(0xFFDFEAD6),
+    onSecondaryContainer = Color(0xFF26472D),
+    surfaceContainer = Color(0xFFE9EEE9),
+    surfaceContainerHigh = Color(0xFFE5EAE5),
     background = Canvas,
     surface = Color.White,
-    surfaceVariant = Color(0xFFEAF0E5),
+    surfaceVariant = Color(0xFFE9EDE6),
     onBackground = Ink,
     onSurface = Ink,
     onSurfaceVariant = Muted,
-    outlineVariant = Color(0xFFD8DED6),
+    outlineVariant = Color(0xFFD7DFD9),
     error = Color(0xFFB3261E),
     errorContainer = Color(0xFFF9DEDC),
     onErrorContainer = Color(0xFF410E0B)
 )
 
 private val Dark = darkColorScheme(
-    primary = LeafDark,
-    onPrimary = Color(0xFF102118),
-    primaryContainer = Color(0xFF293F32),
-    onPrimaryContainer = Color(0xFFDBF1E0),
-    secondary = Color(0xFFF0BD69),
-    background = Color(0xFF101611),
-    surface = Color(0xFF18231C),
-    surfaceVariant = Color(0xFF243129),
+    primary = RainDark,
+    onPrimary = Color(0xFF102D43),
+    primaryContainer = Color(0xFF20394B),
+    onPrimaryContainer = Color(0xFFD9EDFD),
+    secondary = Color(0xFFB9D4B4),
+    secondaryContainer = Color(0xFF293B2E),
+    onSecondaryContainer = Color(0xFFD2E7CC),
+    surfaceContainer = Color(0xFF202D2A),
+    surfaceContainerHigh = Color(0xFF263430),
+    background = Color(0xFF111C1B),
+    surface = Color(0xFF182522),
+    surfaceVariant = Color(0xFF22302C),
     onBackground = Color(0xFFE8F0EA),
     onSurface = Color(0xFFE8F0EA),
     onSurfaceVariant = Color(0xFFB3C0B7),
-    outlineVariant = Color(0xFF3C4B41),
+    outlineVariant = Color(0xFF374641),
     error = Color(0xFFFFB4AB),
     errorContainer = Color(0xFF601410),
     onErrorContainer = Color(0xFFFFDAD6)
@@ -60,8 +68,8 @@ private val GardenShapes = Shapes(
     extraSmall = RoundedCornerShape(10.dp),
     small = RoundedCornerShape(14.dp),
     medium = RoundedCornerShape(20.dp),
-    large = RoundedCornerShape(26.dp),
-    extraLarge = RoundedCornerShape(32.dp)
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(24.dp)
 )
 
 @Composable
@@ -69,13 +77,13 @@ fun SmartWateringTheme(darkTheme: Boolean? = null, content: @Composable () -> Un
     val useDarkTheme = darkTheme ?: isSystemInDarkTheme()
     MaterialTheme(
         colorScheme = if (useDarkTheme) Dark else Light,
-        typography = gardenTypography(),
+        typography = GardenTypography,
         shapes = GardenShapes,
         content = content
     )
 }
 
-private fun gardenTypography() = Typography(
+private val GardenTypography = Typography(
     displayLarge = TextStyle(
         fontSize = 40.sp,
         lineHeight = 46.sp,

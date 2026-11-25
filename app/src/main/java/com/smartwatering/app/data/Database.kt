@@ -72,6 +72,15 @@ interface AppDao {
     @Query("SELECT * FROM plants WHERE id = :id")
     fun plant(id: Long): Flow<Plant?>
 
+    @Query("UPDATE plants SET species = :species WHERE id = :id")
+    suspend fun updateSpecies(id: Long, species: Species): Int
+
+    @Query("SELECT species FROM plants WHERE id = :id")
+    suspend fun speciesFor(id: Long): Species?
+
+    @Query("DELETE FROM decisions WHERE plantId = :id AND date = :date")
+    suspend fun deleteDecision(id: Long, date: String)
+
     @Insert
     suspend fun insertPlant(plant: Plant): Long
 

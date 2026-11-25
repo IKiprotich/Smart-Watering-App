@@ -2,6 +2,7 @@ package com.smartwatering.app.data
 
 import kotlinx.coroutines.flow.Flow
 import com.smartwatering.app.model.Species
+import com.smartwatering.app.model.PlantInput
 import androidx.room.withTransaction
 
 class PlantRepository(private val database: AppDatabase) {
@@ -26,8 +27,8 @@ class PlantRepository(private val database: AppDatabase) {
 
     suspend fun addPlant(name: String, species: Species, lastWateredAt: Long?): Long =
         database.withTransaction {
-            require(name.isNotBlank())
-            val id = dao.insertPlant(Plant(name = name.trim(), species = species))
+            val cleanName = requireNotNull(PlantInput.validName(name))
+            val id = dao.insertPlant(Plant(name = cleanName, species = species))
             if (lastWateredAt != null) {
                 logCheckIn(id, CheckInType.WATERED, lastWateredAt)
             }
@@ -51,11 +52,16 @@ class PlantRepository(private val database: AppDatabase) {
         dao.deletePlantRecord(id)
     }
 
+    suspend fun updateSpecies(id: Long, species: Species, today: String) = database.withTransaction {
+        check(dao.updateSpecies(id, species) == 1)
+        dao.deleteDecision(id, today)
+    }
+
     suspend fun lastWatered(plantId: Long): Long? = dao.lastWatered(plantId)
 
-    suspend fun saveDecision(decision: DecisionRecord, lastWateredAt: Long?) {
+    suspend fun saveDecision(decision: DecisionRecord, lastWateredAt: Long?, species: Species) {
         database.withTransaction {
-            if (dao.plantExists(decision.plantId) && dao.lastWatered(decision.plantId) == lastWateredAt) {
+            if (dao.speciesFor(decision.plantId) == species && dao.lastWatered(decision.plantId) == lastWateredAt) {
                 dao.saveDecision(decision)
             }
         }

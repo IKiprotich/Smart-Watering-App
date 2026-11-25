@@ -19,6 +19,7 @@ import androidx.work.WorkInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,10 @@ data class GardenUiState(
     val yesterdayDecisions: List<DecisionRecord> = emptyList(),
     val checkIns: List<CheckIn> = emptyList(),
     val weather: DailyWeather? = null,
+    val weatherUpdatedAt: Long? = null,
+    val offline: Boolean = false,
+    val plantsLoaded: Boolean = false,
+    val plantsError: Boolean = false,
     val isRefreshing: Boolean = false,
     val refreshMessage: String? = null,
     val isSavingPlant: Boolean = false,
@@ -60,6 +65,7 @@ class SmartWateringViewModel(application: Application) : AndroidViewModel(applic
     private var decisionDate: String? = null
     private var decisionObserver: Job? = null
     private var refreshJob: Job? = null
+    private var plantObserver: Job? = null
     private val mutableState = MutableStateFlow(GardenUiState())
 
     val state: StateFlow<GardenUiState> = mutableState.asStateFlow()
@@ -82,6 +88,7 @@ class SmartWateringViewModel(application: Application) : AndroidViewModel(applic
         refreshJob?.cancel()
         mutableState.update { it.copy(isRefreshing = true, refreshMessage = null) }
         refreshJob = viewModelScope.launch {
+            loadCachedWeather()
             val work = Scheduler.runNow(getApplication())
             val result = withTimeoutOrNull(35_000) {
                 work.first {
@@ -89,17 +96,26 @@ class SmartWateringViewModel(application: Application) : AndroidViewModel(applic
                         (it.state == WorkInfo.State.ENQUEUED && it.runAttemptCount > 0)
                 }
             }
-            val weather = withContext(Dispatchers.IO) {
-                runCatching { WeatherClient.cached(getApplication()) }.getOrNull()
-            }
+            loadCachedWeather()
             mutableState.update {
                 it.copy(
                     isRefreshing = false,
-                    weather = weather,
                     refreshMessage = if (result?.state == WorkInfo.State.SUCCEEDED) null
                     else "Couldn’t refresh the care plan. Tap refresh to try again."
                 )
             }
+        }
+    }
+
+    private suspend fun loadCachedWeather() {
+        val context = getApplication<Application>()
+        val (snapshot, offline) = withContext(Dispatchers.IO) {
+            val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
+            val snapshot = runCatching { WeatherClient.snapshot(context) }.getOrNull()
+            snapshot to (manager.activeNetwork == null)
+        }
+        mutableState.update {
+            it.copy(weather = snapshot?.weather, weatherUpdatedAt = snapshot?.updatedAtMillis, offline = offline)
         }
     }
 
@@ -113,6 +129,11 @@ class SmartWateringViewModel(application: Application) : AndroidViewModel(applic
         }.also {
             mutableState.update { it.copy(isSavingPlant = false) }
         }
+    }
+
+    suspend fun updateSpecies(id: Long, species: Species): Result<Unit> = runCatching {
+        repository.updateSpecies(id, species, LocalDate.now(Nairobi).toString())
+        refreshPlan(replaceRunning = true)
     }
 
     fun removePlant(id: Long) {
@@ -143,10 +164,16 @@ class SmartWateringViewModel(application: Application) : AndroidViewModel(applic
         refreshPlan(replaceRunning = true)
     }
 
+    fun retryPlants() = observePlants()
+
     private fun observePlants() {
-        viewModelScope.launch {
-            repository.plants().collect { plants ->
-                mutableState.update { it.copy(plants = plants) }
+        plantObserver?.cancel()
+        mutableState.update { it.copy(plantsError = false) }
+        plantObserver = viewModelScope.launch {
+            repository.plants().catch {
+                mutableState.update { it.copy(plantsError = true) }
+            }.collect { plants ->
+                mutableState.update { it.copy(plants = plants, plantsLoaded = true, plantsError = false) }
             }
         }
     }

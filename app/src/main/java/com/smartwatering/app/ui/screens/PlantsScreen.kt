@@ -59,6 +59,7 @@ fun PlantsScreen(nav: NavHostController, vm: SmartWateringViewModel = viewModel(
             onOpen = { nav.navigate("plant/${it.id}") },
             onAdd = { nav.navigate("add") },
             onDelete = { pendingDelete = it },
+            onRetry = vm::retryPlants,
             onClearFilters = {
                 query = ""
                 filterName = PlantFilter.ALL.name
@@ -87,7 +88,7 @@ private fun PlantsHeader(onAdd: () -> Unit) {
     ) {
         Column {
             Text(
-                "Your garden",
+                "Garden collection",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -146,9 +147,12 @@ private fun PlantListContent(
     onOpen: (Plant) -> Unit,
     onAdd: () -> Unit,
     onDelete: (Plant) -> Unit,
-    onClearFilters: () -> Unit
+    onClearFilters: () -> Unit,
+    onRetry: () -> Unit
 ) {
     when {
+        state.plantsError -> EmptyPanel("Can’t open your plants", "Try loading your saved plants again.", "Retry", onRetry)
+        !state.plantsLoaded -> LinearProgressIndicator(Modifier.fillMaxWidth())
         state.plants.isEmpty() -> EmptyPanel(
             "A little room to grow",
             "Add your first plant and its daily care plan will appear here.",
@@ -225,13 +229,12 @@ private fun PlantListItem(
             }
         }
     ) {
-        Card(
+        OutlinedCard(
             onClick = onOpen,
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            shape = MaterialTheme.shapes.large,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Row(
                 Modifier.padding(16.dp),
@@ -244,7 +247,7 @@ private fun PlantListItem(
                     label = when {
                         decision?.water == true -> "Water"
                         decision == null -> "Checking"
-                        else -> "Doing well"
+                        else -> "Wait"
                     },
                     needsWater = decision?.water == true
                 )

@@ -9,6 +9,8 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
+data class CachedWeather(val weather: DailyWeather, val updatedAtMillis: Long)
+
 object WeatherClient {
     private const val endpoint =
         "https://api.open-meteo.com/v1/forecast?latitude=-1.2921&longitude=36.8219" +
@@ -43,11 +45,16 @@ object WeatherClient {
         }
     }
 
-    fun cached(context: Context): DailyWeather? = if (cacheFile(context).exists()) {
-        val response = AtomicFile(cacheFile(context)).readFully()
-        DailyWeather.fromOpenMeteo(response.toString(Charsets.UTF_8))
-    } else {
-        null
+    fun cached(context: Context): DailyWeather? = snapshot(context)?.weather
+
+    fun snapshot(context: Context): CachedWeather? {
+        val file = cacheFile(context)
+        if (!file.exists()) return null
+        val response = AtomicFile(file).readFully()
+        return CachedWeather(
+            DailyWeather.fromOpenMeteo(response.toString(Charsets.UTF_8)),
+            file.lastModified()
+        )
     }
 
     private const val NETWORK_TIMEOUT_MS = 15_000

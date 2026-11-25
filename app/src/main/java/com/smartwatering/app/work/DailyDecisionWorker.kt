@@ -37,7 +37,7 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
                 DecisionRecord(plant.id, today.toString(), false, "Watered today")
             } else {
                 val features = FeatureBuilder.build(weather, plant.species, daysSinceWatered)
-                if (features.any { !it.isFinite() }) return@withContext Result.retry()
+                if (!FeatureBuilder.acceptsForPrediction(features)) return@withContext Result.retry()
                 val prediction = tree.predict(features)
                 DecisionRecord(
                     plantId = plant.id,
@@ -47,7 +47,7 @@ class DailyDecisionWorker(context: Context, params: WorkerParameters) : Coroutin
                     features = features.joinToString(",")
                 )
             }
-            repository.saveDecision(decision, lastWateredAt)
+            repository.saveDecision(decision, lastWateredAt, plant.species)
         }
         if (inputData.getBoolean(Scheduler.MORNING_RUN, false)) {
             val due = repository.currentDecisions(today.toString()).count { it.water }

@@ -1,6 +1,8 @@
 package com.smartwatering.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -49,8 +51,9 @@ fun SpeciesAvatar(species: Species, size: Dp = 44.dp) {
 
 @Composable
 fun StatusPill(label: String, needsWater: Boolean) {
-    val bg = if (needsWater) MaterialTheme.colorScheme.secondary.copy(alpha = .22f) else MaterialTheme.colorScheme.primary.copy(alpha = .12f)
-    val fg = if (needsWater) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary
+    val colors = MaterialTheme.colorScheme
+    val bg = if (needsWater) colors.primaryContainer else colors.surfaceContainer
+    val fg = if (needsWater) colors.onPrimaryContainer else colors.onSurfaceVariant
     Surface(color = bg, shape = CircleShape) {
         Text(label, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, color = fg, fontWeight = FontWeight.Medium)
     }
@@ -60,17 +63,39 @@ fun StatusPill(label: String, needsWater: Boolean) {
 fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column {
         Text(title, Modifier.padding(start = 4.dp, bottom = 8.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Card(shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), content = content)
+        OutlinedCard(
+            shape = MaterialTheme.shapes.large,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+            content = content
+        )
     }
 }
 
 @Composable
-fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+fun SettingsRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: (() -> Unit)? = null
+) {
+    val action = if (onClick == null) Modifier else Modifier.clickable(
+        role = androidx.compose.ui.semantics.Role.Button,
+        onClick = onClick
+    )
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).then(action).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Column(Modifier.padding(start = 14.dp)) {
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (onClick != null) {
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

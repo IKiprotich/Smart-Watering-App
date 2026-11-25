@@ -1,4 +1,5 @@
 <resources>
     <color name="app_background">#F7F8F4</color>
     <color name="app_ink">#17211B</color>
+    <color name="garden_icon_background">#162F38</color>
 </resources>

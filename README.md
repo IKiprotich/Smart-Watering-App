@@ -17,7 +17,9 @@ The app is organized by responsibility so screens stay focused and data access i
 - `work/` schedules and runs daily predictions. The worker uses the repository instead of accessing Room from UI code.
 - `ui/util/` contains date formatting and CSV export helpers.
 
-The project now includes Alfred's schema v1 decision tree and 30 matching parity cases. The tree and parity data share the same 12-feature order; `TreeParityTest` checks the order and every expected class. The model metadata also records the weather source and plant parameters.
+The app uses Alfred's schema v1 decision tree with the original 12-feature order. The Android suite keeps the 30 original reference cases and adds 508 synthetic cases covering every leaf and the adjacent float32 values on each split. The synthetic cases verify Android's traversal.
+
+For a revised export, first verify the notebook's reference cases. Then generate the structural probes with `python3 scripts/expand_model_parity.py decision_tree.json android_parity_cases.json` and save its output as the app's parity fixture.
 
 ## Run the app
 

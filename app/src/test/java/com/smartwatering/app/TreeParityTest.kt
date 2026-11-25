@@ -5,6 +5,8 @@ import com.smartwatering.app.model.DailyWeather
 import com.smartwatering.app.model.FeatureBuilder
 import com.smartwatering.app.model.Species
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -13,7 +15,8 @@ class TreeParityTest {
     @Test
     fun kotlinTreeMatchesNotebook() {
         val loader = javaClass.classLoader!!
-        val tree = DecisionTree(loader.getResource("decision_tree.json")!!.readText())
+        val export = loader.getResource("decision_tree.json")!!.readText()
+        val tree = DecisionTree(export)
         val parity = JSONObject(loader.getResource("android_parity_cases.json")!!.readText())
         val featureOrder = parity.getJSONArray("feature_order")
             .let { array -> List(array.length()) { index -> array.getString(index) } }
@@ -22,13 +25,26 @@ class TreeParityTest {
         assertEquals("Android feature order", featureOrder, FeatureBuilder.featureOrder)
 
         val cases = parity.getJSONArray("cases")
+        val leafPaths = mutableSetOf<String>()
         for (index in 0 until cases.length()) {
             val testCase = cases.getJSONObject(index)
             val input = testCase.getJSONArray("features")
                 .let { array -> FloatArray(array.length()) { item -> array.getDouble(item).toFloat() } }
-            val predictedClass = if (tree.predict(input).water) 1 else 0
+            val decision = tree.predict(input)
+            val predictedClass = if (decision.water) 1 else 0
             assertEquals("case $index", testCase.getInt("expected_class"), predictedClass)
+            if (testCase.has("expected_path")) {
+                val path = decision.path.joinToString("") { if (it.wentLeft) "L" else "R" }
+                assertEquals("path for case $index", testCase.getString("expected_path"), path)
+                leafPaths += path
+            }
         }
+        val children = JSONObject(export).getJSONArray("children_left")
+        val leafCount = (0 until children.length()).count { children.getInt(it) == -1 }
+        assertEquals("leaf path coverage", leafCount, leafPaths.size)
+        assertEquals("original and structural fixture count",
+            parity.getInt("reference_case_count") + leafCount + 2 * (children.length() - leafCount),
+            cases.length())
     }
 
     @Test
@@ -48,6 +64,16 @@ class TreeParityTest {
             FeatureBuilder.build(weather, Species.HERB, daysSinceWatered = 7),
             0.0001f
         )
+    }
+
+    @Test
+    fun rejectsImplausibleWeatherBeforePrediction() {
+        val valid = floatArrayOf(20f, 24f, 60f, 16f, 0.5f, 3.5f, 5f, 12f, 2f, 7f, 0.3f, 21f)
+        assertTrue(FeatureBuilder.acceptsForPrediction(valid))
+        for ((index, value) in listOf(1 to 19f, 2 to 140f, 4 to -2f, 6 to Float.NaN, 9 to 0f)) {
+            val invalid = valid.copyOf().also { it[index] = value }
+            assertFalse("invalid feature $index", FeatureBuilder.acceptsForPrediction(invalid))
+        }
     }
 
     @Test

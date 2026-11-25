@@ -1,14 +1,15 @@
 package com.smartwatering.app.ui
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalFlorist
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.outlined.LocalFlorist
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,15 +29,23 @@ import com.smartwatering.app.ui.screens.*
 fun SmartWateringApp(todayRequest: Int = 0) {
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("garden_preferences", 0) }
+    var gardenName by rememberSaveable {
+        mutableStateOf(preferences.getString("profile_name", "").orEmpty())
+    }
     val systemDark = isSystemInDarkTheme()
     var darkMode by rememberSaveable {
         mutableStateOf(preferences.getBoolean("dark_mode", systemDark))
     }
     val view = LocalView.current
-    val activity = view.context as? android.app.Activity
+    val activity = generateSequence(view.context) {
+        (it as? android.content.ContextWrapper)?.baseContext
+    }.filterIsInstance<android.app.Activity>().firstOrNull()
     SideEffect {
         activity?.window?.let { window ->
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkMode
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkMode
+                isAppearanceLightNavigationBars = !darkMode
+            }
         }
     }
     val garden: SmartWateringViewModel = viewModel()
@@ -49,10 +58,10 @@ fun SmartWateringApp(todayRequest: Int = 0) {
         val tabs = listOf(
             AppTab("Today", "today", Icons.Filled.WaterDrop, Icons.Outlined.WaterDrop),
             AppTab("Plants", "plants", Icons.Filled.LocalFlorist, Icons.Outlined.LocalFlorist),
-            AppTab("Settings", "settings", Icons.Filled.Settings, Icons.Outlined.Settings)
+            AppTab("Profile", "settings", Icons.Filled.Person, Icons.Outlined.Person)
         )
         Scaffold(bottomBar = {
-            if (tabs.any { it.route == route }) NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp, windowInsets = WindowInsets.navigationBars) {
+            if (tabs.any { it.route == route }) NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp, windowInsets = WindowInsets.navigationBars) {
                 tabs.forEach { tab ->
                     val selected = route == tab.route
                     NavigationBarItem(
@@ -70,7 +79,7 @@ fun SmartWateringApp(todayRequest: Int = 0) {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
                             selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = .13f),
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -78,14 +87,17 @@ fun SmartWateringApp(todayRequest: Int = 0) {
                 }
             }
         }) { padding ->
-            NavHost(navController = nav, startDestination = "today", modifier = Modifier.padding(padding)) {
-                composable("today") { TodayScreen(nav, garden) }
+            NavHost(navController = nav, startDestination = "today", modifier = Modifier.padding(padding).consumeWindowInsets(padding)) {
+                composable("today") { TodayScreen(nav, garden, gardenName) }
                 composable("plants") { PlantsScreen(nav, garden) }
                 composable("add") { AddPlantScreen(nav, garden) }
                 composable("settings") {
                     SettingsScreen(darkMode = darkMode, onDarkModeChange = {
                         darkMode = it
                         preferences.edit().putBoolean("dark_mode", it).apply()
+                    }, gardenName = gardenName, onGardenNameChange = {
+                        gardenName = it
+                        preferences.edit().putString("profile_name", it).apply()
                     }, vm = garden)
                 }
                 composable("plant/{id}") { entry ->
